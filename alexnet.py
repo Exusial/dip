@@ -41,11 +41,21 @@ class AlexNet(nn.Module):
         x = self.features(x)
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
+        feature = None
         for i,layer in enumerate(self.classifier):
             if i == 6:
-                break
+                feature = x.clone()
             x = layer(x)
+        return x, feature
+    
+    def get_class(self, x):
+        for i, layer in enumerate(self.classifier):
+            if i == 6:
+                x = layer(x)
         return x
+    
+    def get_weight(self):
+        return self.classifier[6].weight.cpu()
 
 
 def alexnet(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> AlexNet:

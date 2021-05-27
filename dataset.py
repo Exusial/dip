@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-
+from torchvision import transforms
 
 class ImageDataset(Dataset):
     def __init__(self, data_path='training',train=True):
@@ -11,24 +11,25 @@ class ImageDataset(Dataset):
         self.dirs = os.listdir(data_path)
         self.train = train
         self.dataset = []
-
+        self.transform = transforms.Normalize(mean=[0.485,0.456,0.406],std=[0.229,0.224,0.225])
+        
     def build_dataset(self):
         self.dataset = []
         for dir in self.dirs:
             path = os.path.join(self.data_path, dir)
             label = int(dir[:3:]) - 1
-            print(label)
             img_names = os.listdir(path)
             target_img = np.random.randint(0,9)
             for num,name in enumerate(img_names):
                 img_path = os.path.join(path, name)
                 img = cv2.imread(img_path)
                 img = cv2.resize(img, (224, 224))
-                img = (img - img.min()) / (img.max() - img.min())
+                img = torch.from_numpy((img - img.min()) / (img.max() - img.min()).astype('float32')).permute(2,0,1)
+                img = self.transform(img)
                 # print(img_path, img.shape)
                 self.dataset.append((
-                    torch.from_numpy(img.astype(np.float32)).permute(2, 0, 1),
-                    label,
+                    img,
+                    label
                 ))
         if not self.train:
             print('Building the validation dataset... data_size:', len(self.dataset))

@@ -1,0 +1,5 @@
+*.npy
+*.pt
+training
+__pycache__
+.idea

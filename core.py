@@ -19,6 +19,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 cls_list = []
 data_map = {}
 
+
 class BaseClassifier(torch.nn.Module):
     def __init__(self, hidden=1000):
         super(BaseClassifier, self).__init__()
@@ -29,6 +30,16 @@ class BaseClassifier(torch.nn.Module):
     def forward(self, x):
         x = self.fc1(x)
         return x
+
+
+def check_index():
+    f = open("base_label.txt","r")
+    line = f.readlines()
+    for i in range(1000):
+        for j in range(i*100,i*100+99):
+            if line[j] != line[j+1]:
+                print("not continuous!")
+    print("continuous.")
 
 
 def get_w(cls):
@@ -57,7 +68,6 @@ def calculate_A():
         idx = int(line[i*100])
         a_feature[idx-1] = np.mean(x[i*100:(i+1)*100,:],0)
     np.save("a_feature.npy",a_feature)
-    A = np.zeros((1000,1000))
     A = cosine_similarity(a_feature, a_feature)
     np.save("A.npy", A)
     return A
@@ -70,8 +80,8 @@ def VAGER(W, A, beta=1):
     :output: V(n*q): embedding of task
     :output: T(q*p): a map from embedding to parameter
     '''
-    V =  Variable(torch.rand((1000,400)), requires_grad=True)
-    T =  Variable(torch.rand((400,4096)), requires_grad=True)
+    V =  Variable(torch.rand((1000,600)), requires_grad=True)
+    T =  Variable(torch.rand((600,4096)), requires_grad=True)
     optimizer = torch.optim.Adam([V,T],lr=0.1)
     #train using gradient descent(might be more convenient than the analytic method)
     it = 0
@@ -79,7 +89,6 @@ def VAGER(W, A, beta=1):
         loss1 = torch.norm(torch.mm(V,T)-W).pow(2)
         loss2 = beta*torch.norm(A-torch.mm(V,torch.transpose(V,0,1))).pow(2)
         loss = loss1+loss2
-        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         print(loss)
@@ -104,11 +113,9 @@ def emb_inf(a, V, T):
     return wnew
 
 
-def pretrain():
-    # wait for data loading
+def check_pretrain():
+    # check the acc of pretrained_model
     AlexNet = alexnet(pretrained=True).cuda()
-    '''
-    # for check accuracy
     data_source = np.load("base_feature.npy")
     f = open("base_label.txt","r")
     line = f.readlines()
@@ -118,7 +125,6 @@ def pretrain():
     train_dataset = FeatureDataset(data_source,indice)
     train_dataset.build_dataset()
     batch_size = 32
-    train_loader = DataLoader(dataset=train_dataset, shuffle=True, batch_size=batch_size, drop_last=True, num_workers=0)
     # for test performance
     tlen = int(0.8 * len(train_dataset))
     dlen = len(train_dataset) - tlen
@@ -126,7 +132,6 @@ def pretrain():
     tl = DataLoader(dataset=ts, shuffle=True, batch_size=batch_size, drop_last=True, num_workers=0)
     dl = DataLoader(dataset=ds, shuffle=True, batch_size=batch_size, drop_last=True, num_workers=0)
     # optimizer = torch.optim.Adam(classifier.parameters(),lr=1e-3)
-    epoch = 60
     AlexNet.eval()
     acc = 0
     for inp,label in tl:
@@ -136,9 +141,8 @@ def pretrain():
             if torch.argmax(output[i]) == label[i]:
                 acc += 1
     print(acc / (tlen))
-    '''
     save_feature(AlexNet.get_weight())
-    # save_feature(classifier.fc1.weight.cpu())
+
 
 def tuning_refine(output, y, w, w_tran):
     """
@@ -205,7 +209,6 @@ def train():
     classifier = BaseClassifier(50).cuda() # use preset init.
     train_dataset = ImageDataset()
     train_dataset.build_dataset()
-    train_loader = DataLoader(dataset=train_dataset, shuffle=True, batch_size=16, drop_last=True, num_workers=0)
     optimizer = torch.optim.Adam(classifier.parameters(),lr=1e-3)
     tlen = int(0.8 * len(train_dataset))
     dlen = len(train_dataset) - tlen
@@ -232,10 +235,10 @@ def train():
                 acc += 1
         print(acc / (len(train_dataset) - tlen))
 
+
 def infer(alex, model):
-    # get dataloader
-    model.eval()
-    md = ImageDataset(data_path='testing')
+    # test on test set.
+    train_dataset = ImageDataset(data_path='testing')
     train_dataset.build_dataset()
     train_loader = DataLoader(dataset=train_dataset, shuffle=True, batch_size=1, drop_last=True, num_workers=0)
     acc = 0
@@ -250,6 +253,7 @@ def infer(alex, model):
 
 
 if __name__ == "__main__":
+    # check_index()
     # calculate_A()
     # pretrain()
-    train()
+    # train()
